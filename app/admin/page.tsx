@@ -1,81 +1,320 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   Package,
   Tags,
   ShoppingBag,
   TrendingUp,
   ArrowRight,
+  AlertTriangle,
+  Star,
+  Mail,
+  Plus,
+  Layers,
+  DollarSign,
+  Eye,
+  EyeOff,
+  Diamond,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/supabase/auth";
 import { formatPrice } from "@/lib/format";
-import type { Order } from "@/lib/supabase/types";
+import type { Order, OrderStatus } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 
+const STATUS_LABEL: Record<OrderStatus, string> = {
+  new: "Yeni",
+  contacted: "Arandı",
+  confirmed: "Onaylandı",
+  shipped: "Kargoda",
+  completed: "Tamamlandı",
+  cancelled: "İptal",
+};
+
+const STATUS_COLOR: Record<OrderStatus, string> = {
+  new: "bg-emerald-500",
+  contacted: "bg-blue-500",
+  confirmed: "bg-indigo-500",
+  shipped: "bg-purple-500",
+  completed: "bg-ink-700",
+  cancelled: "bg-red-500",
+};
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 6) return "İyi geceler";
+  if (h < 12) return "Günaydın";
+  if (h < 18) return "İyi günler";
+  return "İyi akşamlar";
+}
+
 export default async function AdminDashboard() {
   const supabase = await createClient();
+  const { profile } = await getCurrentProfile();
+
+  // Tarihler
+  const now = new Date();
+  const last30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const prev30 = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString();
 
   const [
     { count: productCount },
+    { count: publishedCount },
     { count: featuredCount },
+    { count: soldOutCount },
     { count: categoryCount },
+    { count: newslettersCount },
     { count: newOrdersCount },
+    { data: ordersThisMonth },
+    { data: ordersPrevMonth },
     { data: recentOrders },
+    { data: lowStockProducts },
+    { data: recentProducts },
+    { data: allOrdersForStatus },
+    { data: recentNewsletters },
   ] = await Promise.all([
     supabase.from("products").select("*", { count: "exact", head: true }),
     supabase
       .from("products")
       .select("*", { count: "exact", head: true })
+      .eq("is_published", true),
+    supabase
+      .from("products")
+      .select("*", { count: "exact", head: true })
       .eq("is_featured", true),
+    supabase
+      .from("products")
+      .select("*", { count: "exact", head: true })
+      .eq("stock_status", "sold_out"),
     supabase.from("categories").select("*", { count: "exact", head: true }),
+    supabase
+      .from("newsletter_subscribers")
+      .select("*", { count: "exact", head: true })
+      .eq("is_active", true),
     supabase
       .from("orders")
       .select("*", { count: "exact", head: true })
       .eq("status", "new"),
     supabase
       .from("orders")
+      .select("total, status")
+      .gte("created_at", last30),
+    supabase
+      .from("orders")
+      .select("total")
+      .gte("created_at", prev30)
+      .lt("created_at", last30),
+    supabase
+      .from("orders")
       .select("*")
       .order("created_at", { ascending: false })
+      .limit(6),
+    supabase
+      .from("products")
+      .select("id, name, slug, images, stock_status")
+      .or("stock_status.eq.sold_out,stock_status.eq.on_request")
+      .order("updated_at", { ascending: false })
       .limit(5),
+    supabase
+      .from("products")
+      .select("id, name, slug, images, price, currency, is_published, is_featured")
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("orders")
+      .select("status")
+      .neq("status", "cancelled"),
+    supabase
+      .from("newsletter_subscribers")
+      .select("email, created_at")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(4),
   ]);
 
-  const stats = [
-    { label: "Ürün", value: productCount ?? 0, href: "/admin/urunler", icon: Package },
-    { label: "Öne Çıkan", value: featuredCount ?? 0, href: "/admin/urunler?onecikan=1", icon: TrendingUp },
-    { label: "Kategori", value: categoryCount ?? 0, href: "/admin/kategoriler", icon: Tags },
-    { label: "Yeni Talep", value: newOrdersCount ?? 0, href: "/admin/siparisler", icon: ShoppingBag },
-  ];
+  const monthRevenue =
+    ordersThisMonth?.reduce(
+      (sum, o) =>
+        ["confirmed", "shipped", "completed"].includes(o.status as string)
+          ? sum + Number(o.total)
+          : sum,
+      0,
+    ) ?? 0;
+  const prevRevenue =
+    ordersPrevMonth?.reduce((sum, o) => sum + Number(o.total), 0) ?? 0;
+  const revenueDelta = prevRevenue
+    ? Math.round(((monthRevenue - prevRevenue) / prevRevenue) * 100)
+    : null;
+
+  const monthOrderCount = ordersThisMonth?.length ?? 0;
+  const prevOrderCount = ordersPrevMonth?.length ?? 0;
+  const orderDelta = prevOrderCount
+    ? Math.round(((monthOrderCount - prevOrderCount) / prevOrderCount) * 100)
+    : null;
+
+  // Durum dağılımı (iptal hariç aktif siparişler)
+  const statusGroups: Record<string, number> = {};
+  (allOrdersForStatus ?? []).forEach((o) => {
+    statusGroups[o.status as string] = (statusGroups[o.status as string] ?? 0) + 1;
+  });
+  const totalActive =
+    Object.values(statusGroups).reduce((a, b) => a + b, 0) || 1;
 
   return (
     <>
-      <header>
-        <h1 className="font-serif text-3xl text-ink-700">Hoş geldiniz</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Mağazanızı yönetmeye buradan başlayabilirsiniz.
-        </p>
+      {/* Greeting */}
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-sm text-ink-400">{greeting()},</p>
+          <h1 className="font-serif text-3xl text-ink-700">
+            {profile?.full_name || "Yönetici"} 👋
+          </h1>
+          <p className="mt-1 text-sm text-ink-500">
+            Son 30 gün özeti — bugün{" "}
+            {now.toLocaleDateString("tr-TR", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </p>
+        </div>
+        <Link href="/admin/urunler/yeni" className="btn-primary">
+          <Plus className="h-4 w-4" /> Yeni Ürün Ekle
+        </Link>
       </header>
 
+      {/* Stat cards */}
       <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s) => (
-          <Link
-            key={s.label}
-            href={s.href}
-            className="rounded-2xl bg-white p-5 shadow-soft transition hover:shadow-md"
-          >
-            <div className="flex items-center justify-between">
-              <s.icon className="h-5 w-5 text-gold-500" />
-              <ArrowRight className="h-4 w-4 text-ink-300" />
-            </div>
-            <p className="mt-6 text-3xl font-medium text-ink-700">{s.value}</p>
-            <p className="text-xs uppercase tracking-[0.15em] text-ink-400 mt-1">
-              {s.label}
-            </p>
-          </Link>
-        ))}
+        <StatCard
+          icon={DollarSign}
+          label="Tutar (Onaylı)"
+          value={formatPrice(monthRevenue)}
+          delta={revenueDelta}
+          tone="gold"
+        />
+        <StatCard
+          icon={ShoppingBag}
+          label="Sipariş Talebi"
+          value={String(monthOrderCount)}
+          delta={orderDelta}
+          tone="ink"
+          href="/admin/siparisler"
+        />
+        <StatCard
+          icon={Package}
+          label="Yayındaki Ürün"
+          value={`${publishedCount ?? 0} / ${productCount ?? 0}`}
+          tone="muted"
+          href="/admin/urunler"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Yeni Talep"
+          value={String(newOrdersCount ?? 0)}
+          tone={(newOrdersCount ?? 0) > 0 ? "alert" : "muted"}
+          href="/admin/siparisler?status=new"
+          accent={(newOrdersCount ?? 0) > 0}
+        />
       </section>
 
-      <section className="mt-10 grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl bg-white p-6 shadow-soft">
+      {/* Two column: status + quick actions */}
+      <section className="mt-6 grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 rounded-2xl bg-white p-6 shadow-soft">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-serif text-lg text-ink-700">Talep Durumları</h2>
+              <p className="text-xs text-ink-400">
+                Aktif siparişlerin durumu (iptal hariç)
+              </p>
+            </div>
+            <Link
+              href="/admin/siparisler"
+              className="text-xs text-ink-500 hover:text-ink-700"
+            >
+              Tümü →
+            </Link>
+          </div>
+
+          {Object.keys(statusGroups).length > 0 ? (
+            <div className="mt-6 space-y-3">
+              {(Object.keys(STATUS_LABEL) as OrderStatus[])
+                .filter((s) => s !== "cancelled" && (statusGroups[s] ?? 0) > 0)
+                .map((status) => {
+                  const count = statusGroups[status];
+                  const pct = (count / totalActive) * 100;
+                  return (
+                    <Link
+                      key={status}
+                      href={`/admin/siparisler?status=${status}`}
+                      className="block group"
+                    >
+                      <div className="flex items-baseline justify-between text-xs text-ink-500 mb-1.5">
+                        <span className="group-hover:text-ink-700">
+                          {STATUS_LABEL[status]}
+                        </span>
+                        <span className="text-ink-700 font-medium">
+                          {count}{" "}
+                          <span className="text-ink-300">
+                            ({Math.round(pct)}%)
+                          </span>
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-ink-50 overflow-hidden">
+                        <div
+                          className={`h-full ${STATUS_COLOR[status]} transition-all`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </Link>
+                  );
+                })}
+            </div>
+          ) : (
+            <div className="mt-8 text-center py-8 text-sm text-ink-400">
+              <Layers className="mx-auto h-8 w-8 text-ink-200" strokeWidth={1.2} />
+              <p className="mt-2">Henüz aktif sipariş talebi yok.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl bg-gradient-to-br from-ink-700 to-ink-600 p-6 text-cream shadow-soft">
+          <h2 className="font-serif text-lg flex items-center gap-2">
+            <Diamond className="h-4 w-4 text-gold-400" /> Hızlı Aksiyonlar
+          </h2>
+          <ul className="mt-5 space-y-2">
+            <QuickAction
+              href="/admin/urunler/yeni"
+              icon={Plus}
+              label="Yeni ürün ekle"
+              hint="Fotoğraf + fiyat"
+            />
+            <QuickAction
+              href="/admin/urunler"
+              icon={Package}
+              label="Ürünleri yönet"
+              hint={`${productCount ?? 0} ürün`}
+            />
+            <QuickAction
+              href="/admin/kategoriler"
+              icon={Tags}
+              label="Kategori düzenle"
+              hint={`${categoryCount ?? 0} kategori`}
+            />
+            <QuickAction
+              href="/admin/siparisler"
+              icon={ShoppingBag}
+              label="Talepleri görüntüle"
+              hint={`${newOrdersCount ?? 0} yeni`}
+              highlight={(newOrdersCount ?? 0) > 0}
+            />
+          </ul>
+        </div>
+      </section>
+
+      {/* Recent orders + Low stock */}
+      <section className="mt-6 grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 rounded-2xl bg-white p-6 shadow-soft">
           <div className="flex items-center justify-between">
             <h2 className="font-serif text-lg text-ink-700">Son Talepler</h2>
             <Link
@@ -85,60 +324,360 @@ export default async function AdminDashboard() {
               Tümü →
             </Link>
           </div>
-          <ul className="mt-4 divide-y divide-ink-700/10">
-            {(recentOrders as Order[] | null)?.map((o) => (
-              <li key={o.id} className="py-3 flex items-center justify-between text-sm">
-                <Link
-                  href={`/admin/siparisler/${o.id}`}
-                  className="flex-1 truncate"
-                >
-                  <span className="font-medium text-ink-700">{o.customer_name}</span>
-                  <span className="ml-2 text-ink-400">{o.order_number}</span>
-                </Link>
-                <span className="text-ink-700">{formatPrice(o.total, o.currency)}</span>
-              </li>
-            ))}
-            {(!recentOrders || recentOrders.length === 0) && (
-              <li className="py-6 text-center text-sm text-ink-400">
-                Henüz sipariş talebi yok.
-              </li>
-            )}
-          </ul>
+
+          {recentOrders && recentOrders.length > 0 ? (
+            <ul className="mt-4 divide-y divide-ink-700/5">
+              {(recentOrders as Order[]).map((o) => (
+                <li key={o.id}>
+                  <Link
+                    href={`/admin/siparisler/${o.id}`}
+                    className="flex items-center justify-between py-3 hover:bg-cream/40 -mx-2 px-2 rounded transition"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm text-ink-700 truncate">
+                        {o.customer_name}
+                        <span className="ml-2 text-xs text-ink-300 font-mono">
+                          #{o.order_number}
+                        </span>
+                      </p>
+                      <p className="text-xs text-ink-400 mt-0.5">
+                        {new Date(o.created_at).toLocaleDateString("tr-TR")} •{" "}
+                        {o.items.length} ürün
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span
+                        className={`inline-block h-2 w-2 rounded-full ${STATUS_COLOR[o.status]} mr-2`}
+                      />
+                      <span className="text-sm font-medium text-ink-700">
+                        {formatPrice(o.total, o.currency)}
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="mt-8 text-center py-8 text-sm text-ink-400">
+              <ShoppingBag
+                className="mx-auto h-8 w-8 text-ink-200"
+                strokeWidth={1.2}
+              />
+              <p className="mt-2">Henüz talep yok.</p>
+            </div>
+          )}
         </div>
 
-        <div className="rounded-2xl bg-ink-700 p-6 text-cream shadow-soft">
-          <h2 className="font-serif text-lg">Hızlı İşlemler</h2>
-          <ul className="mt-4 space-y-3">
-            <li>
-              <Link
-                href="/admin/urunler/yeni"
-                className="flex items-center justify-between rounded-lg bg-white/5 px-4 py-3 hover:bg-white/10"
-              >
-                <span>Yeni Ürün Ekle</span>
-                <ArrowRight className="h-4 w-4 text-gold-400" />
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/kategoriler"
-                className="flex items-center justify-between rounded-lg bg-white/5 px-4 py-3 hover:bg-white/10"
-              >
-                <span>Kategori Yönet</span>
-                <ArrowRight className="h-4 w-4 text-gold-400" />
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/siparisler"
-                className="flex items-center justify-between rounded-lg bg-white/5 px-4 py-3 hover:bg-white/10"
-              >
-                <span>Talepleri Görüntüle</span>
-                <ArrowRight className="h-4 w-4 text-gold-400" />
-              </Link>
-            </li>
-          </ul>
+        <div className="rounded-2xl bg-white p-6 shadow-soft">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <h2 className="font-serif text-lg text-ink-700">Stok Uyarıları</h2>
+          </div>
+          <p className="text-xs text-ink-400 mt-1">
+            Tükenen veya siparişe özel ürünler
+          </p>
+
+          {lowStockProducts && lowStockProducts.length > 0 ? (
+            <ul className="mt-4 space-y-2">
+              {lowStockProducts.map((p) => (
+                <li key={p.id}>
+                  <Link
+                    href={`/admin/urunler/${p.id}`}
+                    className="flex items-center gap-3 -mx-2 px-2 py-2 rounded hover:bg-cream/40 transition"
+                  >
+                    <div className="relative h-10 w-10 rounded-lg bg-ink-50 overflow-hidden shrink-0">
+                      {p.images?.[0] && (
+                        <Image
+                          src={p.images[0]}
+                          alt={p.name}
+                          fill
+                          sizes="40px"
+                          className="object-cover"
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ink-700 truncate">
+                        {p.name}
+                      </p>
+                      <p
+                        className={`text-xs ${
+                          p.stock_status === "sold_out"
+                            ? "text-red-500"
+                            : "text-amber-500"
+                        }`}
+                      >
+                        {p.stock_status === "sold_out"
+                          ? "Tükendi"
+                          : "Siparişe Özel"}
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="mt-6 text-center py-6 text-sm text-ink-400">
+              <p>✓ Stok problemi yok</p>
+            </div>
+          )}
         </div>
       </section>
+
+      {/* Recent products + Newsletter */}
+      <section className="mt-6 grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 rounded-2xl bg-white p-6 shadow-soft">
+          <div className="flex items-center justify-between">
+            <h2 className="font-serif text-lg text-ink-700">Son Eklenen Ürünler</h2>
+            <Link
+              href="/admin/urunler"
+              className="text-xs text-ink-500 hover:text-ink-700"
+            >
+              Tümü →
+            </Link>
+          </div>
+
+          {recentProducts && recentProducts.length > 0 ? (
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+              {recentProducts.map((p) => (
+                <li key={p.id}>
+                  <Link
+                    href={`/admin/urunler/${p.id}`}
+                    className="flex items-center gap-3 rounded-lg p-2 hover:bg-cream/40 transition"
+                  >
+                    <div className="relative h-12 w-12 rounded-lg bg-ink-50 overflow-hidden shrink-0">
+                      {p.images?.[0] && (
+                        <Image
+                          src={p.images[0]}
+                          alt={p.name}
+                          fill
+                          sizes="48px"
+                          className="object-cover"
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ink-700 truncate flex items-center gap-1.5">
+                        {p.name}
+                        {p.is_featured && (
+                          <Star className="h-3 w-3 text-gold-400 fill-current" />
+                        )}
+                        {!p.is_published && (
+                          <EyeOff className="h-3 w-3 text-ink-300" />
+                        )}
+                      </p>
+                      <p className="text-xs text-ink-400">
+                        {formatPrice(p.price, p.currency)}
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="mt-6 text-center py-8 text-sm text-ink-400">
+              <Package className="mx-auto h-8 w-8 text-ink-200" strokeWidth={1.2} />
+              <p className="mt-2">Henüz ürün yok.</p>
+              <Link
+                href="/admin/urunler/yeni"
+                className="text-gold-500 hover:underline mt-2 inline-block"
+              >
+                İlk ürünü ekle →
+              </Link>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl bg-cream/40 p-6 border border-ink-700/5">
+          <div className="flex items-center gap-2">
+            <Mail className="h-4 w-4 text-gold-500" />
+            <h2 className="font-serif text-lg text-ink-700">Bülten Aboneleri</h2>
+          </div>
+          <p className="mt-3 text-3xl font-medium text-ink-700">
+            {newslettersCount ?? 0}
+          </p>
+          <p className="text-xs text-ink-400">aktif abone</p>
+
+          {recentNewsletters && recentNewsletters.length > 0 && (
+            <ul className="mt-5 space-y-2 text-xs text-ink-500 border-t border-ink-700/5 pt-3">
+              {recentNewsletters.map((n) => (
+                <li key={n.email} className="flex justify-between truncate">
+                  <span className="truncate">{n.email}</span>
+                  <span className="text-ink-300 ml-2 shrink-0">
+                    {new Date(n.created_at).toLocaleDateString("tr-TR")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {/* Quick stats footer */}
+      <section className="mt-6 grid gap-4 sm:grid-cols-3">
+        <MiniStat
+          label="Öne Çıkan"
+          value={featuredCount ?? 0}
+          icon={Star}
+          accent="gold"
+        />
+        <MiniStat
+          label="Tükenen"
+          value={soldOutCount ?? 0}
+          icon={EyeOff}
+          accent="red"
+        />
+        <MiniStat
+          label="Kategori"
+          value={categoryCount ?? 0}
+          icon={Tags}
+          accent="ink"
+        />
+      </section>
     </>
+  );
+}
+
+// --- Components ---
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  delta,
+  tone,
+  href,
+  accent,
+}: {
+  icon: typeof DollarSign;
+  label: string;
+  value: string;
+  delta?: number | null;
+  tone: "gold" | "ink" | "muted" | "alert";
+  href?: string;
+  accent?: boolean;
+}) {
+  const toneClasses = {
+    gold: "bg-gradient-to-br from-gold-400 to-gold-500 text-ink-700",
+    ink: "bg-white text-ink-700",
+    muted: "bg-white text-ink-700",
+    alert: "bg-red-50 text-red-700 ring-1 ring-red-200",
+  }[tone];
+
+  const className = `rounded-2xl p-5 shadow-soft transition ${toneClasses} ${
+    href ? "hover:shadow-md" : ""
+  } ${accent ? "ring-2 ring-red-300 animate-pulse" : ""}`;
+
+  const inner = (
+    <>
+      <div className="flex items-center justify-between">
+        <Icon className="h-5 w-5 opacity-80" />
+        {delta !== null && delta !== undefined && (
+          <span
+            className={`text-xs font-medium inline-flex items-center gap-0.5 ${
+              delta >= 0 ? "text-emerald-600" : "text-red-600"
+            } ${tone === "gold" ? "text-ink-700" : ""}`}
+          >
+            <TrendingUp
+              className={`h-3 w-3 ${delta < 0 ? "rotate-180" : ""}`}
+            />
+            {delta > 0 ? "+" : ""}
+            {delta}%
+          </span>
+        )}
+      </div>
+      <p className="mt-5 text-2xl font-medium tracking-tight">{value}</p>
+      <p
+        className={`text-xs mt-1 ${
+          tone === "gold" ? "text-ink-700/70" : "text-ink-400"
+        }`}
+      >
+        {label}
+      </p>
+    </>
+  );
+
+  return href ? (
+    <Link href={href} className={className}>
+      {inner}
+    </Link>
+  ) : (
+    <div className={className}>{inner}</div>
+  );
+}
+
+function QuickAction({
+  href,
+  icon: Icon,
+  label,
+  hint,
+  highlight,
+}: {
+  href: string;
+  icon: typeof Plus;
+  label: string;
+  hint: string;
+  highlight?: boolean;
+}) {
+  return (
+    <li>
+      <Link
+        href={href}
+        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
+          highlight
+            ? "bg-gold-400 text-ink-700 hover:bg-gold-300"
+            : "bg-white/5 hover:bg-white/10 text-cream"
+        }`}
+      >
+        <Icon
+          className={`h-4 w-4 ${
+            highlight ? "text-ink-700" : "text-gold-400"
+          }`}
+        />
+        <span className="flex-1">{label}</span>
+        <span
+          className={`text-xs ${
+            highlight ? "text-ink-700/70" : "text-cream/50"
+          }`}
+        >
+          {hint}
+        </span>
+        <ArrowRight
+          className={`h-3.5 w-3.5 ${
+            highlight ? "text-ink-700/50" : "text-cream/40"
+          }`}
+        />
+      </Link>
+    </li>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  icon: Icon,
+  accent,
+}: {
+  label: string;
+  value: number;
+  icon: typeof Star;
+  accent: "gold" | "red" | "ink";
+}) {
+  const dotColor = {
+    gold: "text-gold-500",
+    red: "text-red-500",
+    ink: "text-ink-500",
+  }[accent];
+
+  return (
+    <div className="rounded-xl bg-white p-4 shadow-soft flex items-center gap-3">
+      <div className={`${dotColor}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <p className="text-xl font-medium text-ink-700">{value}</p>
+        <p className="text-xs text-ink-400">{label}</p>
+      </div>
+    </div>
   );
 }
