@@ -12,3 +12,5 @@ dist
 .idea
 .claude
 next-env.d.ts
+vercel-env.txt
+tsconfig.tsbuildinfo
