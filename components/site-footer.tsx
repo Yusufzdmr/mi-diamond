@@ -1,9 +1,21 @@
 import Link from "next/link";
-import { Diamond, Instagram, Phone, Mail, MapPin } from "lucide-react";
+import { Diamond, Instagram, Phone, Mail, MapPin, LayoutGrid } from "lucide-react";
 import { siteConfig, whatsappUrl } from "@/lib/format";
 import { NewsletterForm } from "./newsletter-form";
+import { createClient } from "@/lib/supabase/server";
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  let isAdmin = false;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    isAdmin = !!user;
+  } catch {
+    // Supabase env yoksa anonim render
+  }
+
   return (
     <footer className="mt-24 border-t border-ink-700/10 bg-ink-700 text-cream">
       <div className="container-prose py-16">
@@ -87,14 +99,25 @@ export function SiteFooter() {
 
         <div className="mt-12 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-t border-cream/10 pt-8 text-xs text-cream/60">
           <span>© {new Date().getFullYear()} {siteConfig.name}. Tüm hakları saklıdır.</span>
-          <a
-            href={whatsappUrl("Merhaba, ürünleriniz hakkında bilgi almak istiyorum.")}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-gold-400"
-          >
-            WhatsApp ile yazın →
-          </a>
+          <div className="flex items-center gap-5">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="inline-flex items-center gap-1.5 text-gold-400 hover:text-gold-300"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Yönetim Paneli
+              </Link>
+            )}
+            <a
+              href={whatsappUrl("Merhaba, ürünleriniz hakkında bilgi almak istiyorum.")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-gold-400"
+            >
+              WhatsApp ile yazın →
+            </a>
+          </div>
         </div>
       </div>
     </footer>
