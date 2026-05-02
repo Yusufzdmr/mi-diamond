@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { updateProfileAction } from "@/app/hesap/actions";
+import { updateProfileAction } from "@/app/(public)/hesap/actions";
 
 export function ProfileForm({
   email,

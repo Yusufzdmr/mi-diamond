@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LayoutGrid, ShoppingBag, User, LogOut } from "lucide-react";
+import {
+  LayoutGrid,
+  ShoppingBag,
+  User,
+  LogOut,
+  Settings,
+} from "lucide-react";
 import { getCurrentProfile } from "@/lib/supabase/auth";
 import { signOutAction } from "./actions";
 
@@ -13,6 +19,8 @@ export default async function AccountLayout({
 }) {
   const { user, profile } = await getCurrentProfile();
   if (!user) redirect("/giris?next=/hesap");
+
+  const isAdmin = profile?.is_admin ?? false;
 
   return (
     <div className="container-prose py-12 md:py-16">
@@ -43,10 +51,21 @@ export default async function AccountLayout({
                 {item.label}
               </Link>
             ))}
+
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gold-600 transition hover:bg-gold-50 mt-1 border-t border-ink-700/5 pt-3"
+              >
+                <Settings className="h-4 w-4" />
+                Yönetim Paneli
+              </Link>
+            )}
+
             <form action={signOutAction}>
               <button
                 type="submit"
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-500 transition hover:bg-cream hover:text-ink-700"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-500 transition hover:bg-cream hover:text-ink-700 mt-1 border-t border-ink-700/5 pt-3"
               >
                 <LogOut className="h-4 w-4" /> Çıkış yap
               </button>

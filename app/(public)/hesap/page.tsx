@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, Package, Heart, ShoppingBag } from "lucide-react";
+import { ArrowRight, Package, Heart, ShoppingBag, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentUser } from "@/lib/supabase/auth";
+import { getCurrentProfile } from "@/lib/supabase/auth";
 import { formatPrice } from "@/lib/format";
 import type { Order, OrderStatus } from "@/lib/supabase/types";
 
@@ -17,8 +17,9 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 };
 
 export default async function AccountDashboardPage() {
-  const user = await getCurrentUser();
+  const { user, profile } = await getCurrentProfile();
   const supabase = await createClient();
+  const isAdmin = profile?.is_admin ?? false;
 
   const { data: orders } = await supabase
     .from("orders")
@@ -41,6 +42,22 @@ export default async function AccountDashboardPage() {
           yönetebilirsiniz.
         </p>
       </header>
+
+      {isAdmin && (
+        <Link
+          href="/admin"
+          className="mt-6 flex items-center gap-3 rounded-2xl bg-ink-700 p-4 text-cream shadow-soft hover:bg-ink-600 transition"
+        >
+          <Settings className="h-5 w-5 text-gold-400" />
+          <div className="flex-1">
+            <p className="font-medium">Yönetim Paneline Git</p>
+            <p className="text-xs text-cream/70">
+              Ürünler, kategoriler ve sipariş taleplerini yönet
+            </p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-gold-400" />
+        </Link>
+      )}
 
       <section className="mt-8 grid gap-4 sm:grid-cols-3">
         <Link
