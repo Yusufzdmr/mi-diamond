@@ -61,6 +61,7 @@ export type PaymentStatus =
 export type Order = {
   id: string;
   order_number: string;
+  user_id: string | null;
   customer_name: string;
   customer_phone: string;
   customer_email: string | null;
@@ -78,6 +79,15 @@ export type Order = {
   payment_status: PaymentStatus;
   payment_method: string | null;
   payment_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Profile = {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  is_admin: boolean;
   created_at: string;
   updated_at: string;
 };

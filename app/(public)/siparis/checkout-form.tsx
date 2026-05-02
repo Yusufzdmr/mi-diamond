@@ -4,12 +4,26 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Loader2, ShoppingBag } from "lucide-react";
+import { Loader2, ShoppingBag, UserCircle } from "lucide-react";
 import { useCart } from "@/components/cart/cart-context";
 import { formatPrice } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
-export function CheckoutForm() {
+type Props = {
+  defaultName?: string;
+  defaultPhone?: string;
+  defaultEmail?: string;
+  loggedIn?: boolean;
+  userId?: string | null;
+};
+
+export function CheckoutForm({
+  defaultName = "",
+  defaultPhone = "",
+  defaultEmail = "",
+  loggedIn = false,
+  userId = null,
+}: Props) {
   const router = useRouter();
   const { items, subtotal, clear } = useCart();
   const [loading, setLoading] = useState(false);
@@ -32,6 +46,7 @@ export function CheckoutForm() {
 
     const fd = new FormData(e.currentTarget);
     const payload = {
+      user_id: userId,
       customer_name: String(fd.get("name") ?? "").trim(),
       customer_phone: String(fd.get("phone") ?? "").trim(),
       customer_email: String(fd.get("email") ?? "").trim() || null,
@@ -78,17 +93,41 @@ export function CheckoutForm() {
   return (
     <form onSubmit={onSubmit} className="grid gap-10 lg:grid-cols-[1fr_360px]">
       <div className="space-y-6">
+        {!loggedIn && (
+          <div className="rounded-2xl border border-gold-400/30 bg-gold-50/50 p-5 flex items-start gap-3">
+            <UserCircle className="h-6 w-6 text-gold-500 shrink-0" />
+            <div className="flex-1 text-sm">
+              <p className="font-medium text-ink-700">Hesabınız var mı?</p>
+              <p className="mt-1 text-ink-500">
+                <Link href={`/giris?next=/siparis`} className="text-gold-600 hover:underline font-medium">
+                  Giriş yapın
+                </Link>{" "}
+                — bilgileriniz otomatik dolsun ve siparişiniz hesabınıza
+                kaydedilsin. Misafir olarak da devam edebilirsiniz.
+              </p>
+            </div>
+          </div>
+        )}
+
         <fieldset className="rounded-2xl bg-white p-6 shadow-soft">
           <legend className="px-2 font-serif text-lg text-ink-700">
             İletişim Bilgileri
           </legend>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Field label="Ad Soyad *" name="name" required />
-            <Field label="Telefon *" name="phone" type="tel" required placeholder="05xx xxx xx xx" />
+            <Field label="Ad Soyad *" name="name" defaultValue={defaultName} required />
+            <Field
+              label="Telefon *"
+              name="phone"
+              type="tel"
+              defaultValue={defaultPhone}
+              required
+              placeholder="05xx xxx xx xx"
+            />
             <Field
               label="E-posta"
               name="email"
               type="email"
+              defaultValue={defaultEmail}
               className="sm:col-span-2"
             />
           </div>
@@ -202,6 +241,7 @@ function Field({
   type = "text",
   required,
   placeholder,
+  defaultValue,
   className = "",
 }: {
   label: string;
@@ -209,6 +249,7 @@ function Field({
   type?: string;
   required?: boolean;
   placeholder?: string;
+  defaultValue?: string;
   className?: string;
 }) {
   return (
@@ -219,6 +260,7 @@ function Field({
         type={type}
         required={required}
         placeholder={placeholder}
+        defaultValue={defaultValue}
         className="mt-1 w-full rounded-lg border border-ink-200 bg-cream/50 px-4 py-2.5 text-sm focus:border-ink-700 focus:outline-none"
       />
     </label>

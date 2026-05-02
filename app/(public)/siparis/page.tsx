@@ -1,8 +1,12 @@
 import { CheckoutForm } from "./checkout-form";
+import { getCurrentProfile } from "@/lib/supabase/auth";
 
 export const metadata = { title: "Sipariş Talebi" };
+export const dynamic = "force-dynamic";
 
-export default function CheckoutPage() {
+export default async function CheckoutPage() {
+  const { user, profile } = await getCurrentProfile();
+
   return (
     <div className="container-prose py-12 md:py-16">
       <p className="label-eyebrow">Son Adım</p>
@@ -16,7 +20,13 @@ export default function CheckoutPage() {
       </p>
 
       <div className="mt-10">
-        <CheckoutForm />
+        <CheckoutForm
+          loggedIn={!!user}
+          userId={user?.id ?? null}
+          defaultName={profile?.full_name ?? ""}
+          defaultPhone={profile?.phone ?? ""}
+          defaultEmail={user?.email ?? ""}
+        />
       </div>
     </div>
   );

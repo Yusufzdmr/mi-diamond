@@ -35,21 +35,64 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin");
-  const isLoginRoute = request.nextUrl.pathname === "/admin/login";
+  const path = request.nextUrl.pathname;
+  const isAdminRoute = path.startsWith("/admin");
+  const isAdminLogin = path === "/admin/login";
+  const isAccountRoute = path.startsWith("/hesap");
+  const isAuthPage = path === "/giris" || path === "/kayit";
 
-  if (isAdminRoute && !isLoginRoute && !user) {
+  // Hesap rotaları: girişsiz ise /giris'e yönlendir
+  if (isAccountRoute && !user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin/login";
-    url.searchParams.set("next", request.nextUrl.pathname);
+    url.pathname = "/giris";
+    url.searchParams.set("next", path);
     return NextResponse.redirect(url);
   }
 
-  if (isLoginRoute && user) {
+  // /giris veya /kayit: girişliyse /hesap'a yönlendir
+  if (isAuthPage && user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin";
-    url.searchParams.delete("next");
+    url.pathname = "/hesap";
+    url.search = "";
     return NextResponse.redirect(url);
+  }
+
+  // Admin rotaları: kullanıcı yoksa login'e
+  if (isAdminRoute && !isAdminLogin && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/login";
+    url.searchParams.set("next", path);
+    return NextResponse.redirect(url);
+  }
+
+  // Admin rotaları: kullanıcı var ama is_admin değilse hesaba yönlendir
+  if (isAdminRoute && !isAdminLogin && user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!profile?.is_admin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/hesap";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // Admin login: zaten admin girişliyse /admin'e
+  if (isAdminLogin && user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profile?.is_admin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/admin";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
   }
 
   return response;

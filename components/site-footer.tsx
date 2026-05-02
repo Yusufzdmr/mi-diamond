@@ -2,18 +2,17 @@ import Link from "next/link";
 import { Diamond, Instagram, Phone, Mail, MapPin, LayoutGrid } from "lucide-react";
 import { siteConfig, whatsappUrl } from "@/lib/format";
 import { NewsletterForm } from "./newsletter-form";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/supabase/auth";
 
 export async function SiteFooter() {
   let isAdmin = false;
+  let loggedIn = false;
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    isAdmin = !!user;
+    const { user, profile } = await getCurrentProfile();
+    loggedIn = !!user;
+    isAdmin = profile?.is_admin ?? false;
   } catch {
-    // Supabase env yoksa anonim render
+    // env eksikse anonim render
   }
 
   return (
@@ -51,6 +50,24 @@ export async function SiteFooter() {
               <li><Link href="/hakkimizda" className="hover:text-gold-400">Hakkımızda</Link></li>
               <li><Link href="/iletisim" className="hover:text-gold-400">İletişim</Link></li>
             </ul>
+
+            <h4 className="mt-6 text-sm font-medium uppercase tracking-[0.2em] text-gold-400">
+              Hesap
+            </h4>
+            <ul className="mt-4 space-y-2 text-sm text-cream/80">
+              {loggedIn ? (
+                <>
+                  <li><Link href="/hesap" className="hover:text-gold-400">Hesabım</Link></li>
+                  <li><Link href="/hesap/siparislerim" className="hover:text-gold-400">Siparişlerim</Link></li>
+                </>
+              ) : (
+                <>
+                  <li><Link href="/giris" className="hover:text-gold-400">Giriş Yap</Link></li>
+                  <li><Link href="/kayit" className="hover:text-gold-400">Hesap Oluştur</Link></li>
+                </>
+              )}
+            </ul>
+
             <h4 className="mt-6 text-sm font-medium uppercase tracking-[0.2em] text-gold-400">
               Yardım
             </h4>
