@@ -1,9 +1,21 @@
-# Mi Diamond — Butik Kuyumcu Sitesi
+<div align="center">
 
-Next.js 16 (App Router) + Supabase + Tailwind CSS ile hazırlanmış, butik bir
-kuyumcu firması için ödemesiz katalog sitesi. Admin panelinden ürün, kategori ve
-sipariş talebi yönetimi yapılır. Ödeme entegrasyonu altyapısı hazır — istenildiği
-zaman aktif edilebilir.
+# 💎 Mi Diamond — Butik Kuyumcu Sitesi
+
+**Next.js + Supabase ile mücevher e-katalog & sipariş talebi platformu**
+
+Pırlanta/mücevher firması için katalog, filtreleme, sepet, favoriler ve
+sipariş talebi akışı + tam donanımlı yönetim paneli. Ödeme altyapısı hazır.
+
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-Auth%20·%20DB%20·%20Storage-3FCF8E?logo=supabase&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind-3-06B6D4?logo=tailwindcss&logoColor=white)
+
+</div>
+
+---
 
 ## Özellikler
 
